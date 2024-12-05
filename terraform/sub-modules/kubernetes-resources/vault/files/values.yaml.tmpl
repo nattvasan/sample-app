@@ -1,0 +1,83 @@
+global:
+  enabled: true
+
+server:
+  enabled: true
+  ingress:
+    enabled: true
+    annotations:
+      kubernetes.io/ingress.class: ${ingress_class}
+    activeService: true
+    hosts:
+      - host: ${fqdn}
+    tls:
+    - hosts:
+      - ${fqdn}
+
+  ha:
+    enabled: true
+    replicas: 3
+    raft:
+      enabled: true
+      config: |
+        ui = true
+
+        listener "tcp" {
+          tls_disable = 1
+          address = "[::]:8200"
+          cluster_address = "[::]:8201"
+          # Enable unauthenticated metrics access (necessary for Prometheus Operator)
+          telemetry {
+            unauthenticated_metrics_access = true
+          }
+        }
+
+        storage "raft" {
+          path = "/vault/data"
+        }
+
+        seal "azurekeyvault" {
+          tenant_id      = "${tenant_id}"
+          client_id      = "${principal_id}"
+          client_secret  = "${client_secret}"
+          vault_name     = "${keyvault_name}"
+          key_name       = "${name}-key"
+        }
+
+        service_registration "kubernetes" {}
+
+        telemetry {
+          prometheus_retention_time = "60s"
+          disable_hostname = true
+        }
+
+  serviceAccount:
+    create: true
+    name: ${name}
+    serviceDiscovery:
+      enabled: true
+  extraEnvironmentVars:
+    VAULT_SEAL_TYPE: azurekeyvault
+
+serverTelemetry:
+  serviceMonitor:
+    enabled: true
+  prometheusRules:
+    enabled: true
+    rules:
+     - alert: vault-HighResponseTime
+       annotations:
+         message: The response time of Vault is over 500ms on average over the last 5 minutes.
+       expr: vault_core_handle_request{quantile="0.5", namespace="vault"} > 500
+       for: 5m
+       labels:
+         severity: warning
+     - alert: vault-HighResponseTime
+       annotations:
+         message: The response time of Vault is over 1s on average over the last 5 minutes.
+       expr: vault_core_handle_request{quantile="0.5", namespace="vault"} > 1000
+       for: 5m
+       labels:
+         severity: critical
+injector:
+  enabled: true

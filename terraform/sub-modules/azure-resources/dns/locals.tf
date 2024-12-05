@@ -1,0 +1,3 @@
+locals {
+  envs = ["dev", "prod"]
+}

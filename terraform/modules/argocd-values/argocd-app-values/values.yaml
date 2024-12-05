@@ -1,0 +1,7 @@
+projects:
+  - name: webapp
+    sourceRepos:
+    - https://github.com/nattvasan/testapp.git
+    destinations:
+    - namespace: testapp
+      server: '*'

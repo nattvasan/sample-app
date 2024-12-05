@@ -1,0 +1,481 @@
+assertNoLeakedSecrets: false
+
+defaultRules:
+  rules:
+    kubeControllerManager: false
+    kubeProxy: false
+    kubeSchedulerAlerting: false
+
+grafana:
+  enabled: true
+  assertNoLeakedSecrets: false
+  # adminPassword with be set by set_sensitive
+  defaultDashboardsEnabled: true
+  plugins: [grafana-piechart-panel]
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+      - name: 'default'
+        orgId: 1
+        folder: ''
+        type: file
+        disableDeletion: false
+        editable: false
+        options:
+          path: /var/lib/grafana/dashboards/default
+      - name: 'rabbitmq'
+        orgId: 1
+        folder: 'RabbitMQ'
+        type: file
+        disableDeletion: false
+        editable: false
+        options:
+          path: /var/lib/grafana/dashboards/rabbitmq
+  dashboards:
+    rabbitmq:
+      rabbitmq-overview:
+        gnetId: 10991
+        revision: 12
+        datasource: prometheus-prod
+      rabbitmq-quorum-queues-raft:
+        gnetId: 11340
+        revision: 5
+        datasource: prometheus-prod
+      rabbitmq-stream:
+        gnetId: 14798
+        revision: 9
+        datasource: prometheus-prod
+      erlang-distribution-dashboard:
+        gnetId: 11352
+        revision: 7
+        datasource: prometheus-prod
+      erlang-distributions-compare-dashboard:
+        gnetId: 10988
+        revision: 11
+        datasource: prometheus-prod
+      erlang-memory-allocators-dashboard:
+        gnetId: 11350
+        revision: 5
+        datasource: prometheus-prod
+    default:
+      falco:
+        gnetId: 11914
+        revision: 1
+        datasource: prometheus-prod
+      argocd:
+        gnetId: 14584
+        revision: 1
+        datasource: prometheus-prod
+      cert-manager:
+        gnetId: 11001
+        revision: 1
+        datasource: prometheus-prod
+      external-dns:
+        gnetId: 15038
+        revision: 1
+        datasource: prometheus-prod
+      karpenter:
+        gnetId: 16237
+        revision: 1
+        datasource: Prometheus
+      traefik-internal:
+        gnetId: 12250
+        revision: 1
+        datasource: prometheus-prod
+      mongodb:
+        gnetId: 2583
+        revision: 1
+        datasource: prometheus-prod
+      keycloak:
+        gnetId: 10441
+        revision: 2
+        datasource: prometheus-prod
+      kube-autoscaler:
+        gnetId: 3831
+        revision: 1
+        datasource: prometheus-prod
+  grafana.ini:
+    server:
+      root_url: https://grafana.${domain}
+    users:
+      viewers_can_edit: true
+    auth:
+      disable_login_form: false
+      disable_signout_menu: false
+    auth.anonymous:
+      enabled: true
+      org_role: Admin
+    azure:
+      managed_identity_enabled: true
+      managed_identity_client_id: ${kubelet_client_id}
+    database:
+        type: postgres
+        host: ${host}
+        name: ${database}
+        user: ${username}
+        password: ${password}
+        ssl_mode: require
+  envValueFrom:
+    POSTGRESQL_PASSWORD:
+      secretKeyRef:
+        name: ${db_secret_ref}
+        key: GF_DATABASE_PASSWORD
+  ingress:
+    enabled: true
+    annotations:
+      kubernetes.io/ingress.class: ${ingress_class}
+    pathType: Prefix
+    hosts:
+      - grafana.${domain}
+    tls:
+      - hosts:
+          - grafana.${domain}
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: "ALL"
+
+  additionalDataSources:
+  - name: prometheus-global
+    access: proxy
+    editable: false
+    orgId: 1
+    type: prometheus
+    jsonData:
+      tlsSkipVerify: true
+    url: https://prometheus.gnd.aerq.internal/
+  - name: prometheus-demo
+    access: proxy
+    editable: false
+    orgId: 1
+    type: prometheus
+    jsonData:
+      tlsSkipVerify: true
+    url: https://prometheus.demo.gnd.aerq.internal/
+  - name: prometheus-dev
+    access: proxy
+    editable: false
+    orgId: 1
+    type: prometheus
+    jsonData:
+      tlsSkipVerify: true
+    url: https://prometheus.dev.gnd.aerq.internal/
+  - name: prometheus-test
+    access: proxy
+    editable: false
+    orgId: 1
+    type: prometheus
+    jsonData:
+      tlsSkipVerify: true
+    url: https://prometheus.test.gnd.aerq.internal/
+  - name: prometheus-int
+    access: proxy
+    editable: false
+    orgId: 1
+    type: prometheus
+    jsonData:
+      tlsSkipVerify: true
+    url: https://prometheus.int.gnd.aerq.internal/
+  - name: prometheus-stg
+    access: proxy
+    editable: false
+    orgId: 1
+    type: prometheus
+    jsonData:
+      tlsSkipVerify: true
+    url: https://prometheus.stg.gnd.aerq.internal/
+  - name: prometheus-prod
+    access: proxy
+    editable: false
+    orgId: 1
+    type: prometheus
+    jsonData:
+      tlsSkipVerify: true
+    url: https://prometheus.prod.gnd.aerq.internal/
+
+fullnameOverride: ${name}
+
+prometheus:
+  enabled: true
+  serviceAccount:
+    create: true
+    name: ${name}
+    annotations:
+      azure.workload.identity/use : "true"
+  thanosService:
+    enabled: true
+  thanosServiceMonitor:
+    enabled: true
+  ingress:
+    enabled: true
+    annotations:
+      kubernetes.io/ingress.class: ${ingress_class}
+    hosts:
+      - ${name}.${domain}
+    pathType: Prefix
+    tls:
+      - hosts:
+          - ${name}.${domain}
+  prometheusSpec:
+    enableRemoteWriteReceiver: true
+    ruleNamespaceSelector: {}
+    ruleSelectorNilUsesHelmValues: false
+    serviceMonitorNamespaceSelector: {}
+    serviceMonitorSelectorNilUsesHelmValues: false
+    retention: "90d"
+    persistentVolume:
+      enabled: true
+    statefulSet:
+      enabled: true
+    externalLabels:
+      environment: ${env}
+      cluster: ${cluster_name}
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: "default"
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 400Gi
+    resources:
+      requests:
+        cpu: 1
+        memory: 2Gi
+    thanos:
+      objectStorageConfig:
+        name: ${objstore_secret_name}
+        key: objstore.yml
+    additionalScrapeConfigs:
+    ${additionalScrapeConfigs}
+    - job_name: kubernetes-pods
+      kubernetes_sd_configs:
+      - role: pod
+        kubeconfig_file: ""
+        follow_redirects: true
+      honor_timestamps: true
+      scrape_interval: 15s
+      scrape_timeout: 10s
+      metrics_path: /metrics
+      scheme: http
+      basic_auth:
+        username: ${metrics_auth_username}
+        password: ${metrics_auth_password}
+      follow_redirects: true
+      relabel_configs:
+      - source_labels: [mount_point]
+        target_label: "keystore_mount_point"
+        separator: _
+        replacement: "$${1}_$${2}_"
+        regex: (.*?)/(.*?)/
+        action: replace
+      - source_labels: [keystore_mount_point]
+        target_label: "keystore_mount_point"
+        separator: _
+        replacement: "$${1}_$${2}"
+        regex: (.*?)-(.*?)
+        action: replace
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        separator: ;
+        regex: "true"
+        replacement: $1
+        action: keep
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        separator: ;
+        regex: (.+)
+        target_label: __metrics_path__
+        replacement: $1
+        action: replace
+      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+        separator: ;
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        target_label: __address__
+        replacement: $1:$2
+        action: replace
+      - separator: ;
+        regex: __meta_kubernetes_pod_label_(.+)
+        replacement: $1
+        action: labelmap
+      - source_labels: [__meta_kubernetes_namespace]
+        separator: ;
+        regex: (.*)
+        target_label: kubernetes_namespace
+        replacement: $1
+        action: replace
+      - source_labels: [__meta_kubernetes_pod_name]
+        separator: ;
+        regex: (.*)
+        target_label: kubernetes_pod_name
+        replacement: $1
+        action: replace
+
+alertmanager:
+  enabled: true
+  ingress:
+    enabled: true
+    annotations:
+      kubernetes.io/ingress.class: ${ingress_class}
+    hosts:
+      - alertmanager.${domain}
+    tls:
+      - hosts:
+          - alertmanager.${domain}
+  alertmanagerSpec:
+    replicas: 2 # https://github.com/prometheus-community/helm-charts/issues/1452
+    externalUrl: https://alertmanager.${domain}
+    resources:
+      requests:
+        cpu: 15m
+        memory: 60Mi
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: default
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 2Gi
+    config:
+      global:
+        resolve_timeout: 5m
+      inhibit_rules:
+        - source_matchers:
+            - 'severity = critical'
+          target_matchers:
+            - 'severity =~ warning|info'
+          equal:
+            - 'namespace'
+            - 'alertname'
+        - source_matchers:
+            - 'severity = warning'
+          target_matchers:
+            - 'severity = info'
+          equal:
+            - 'namespace'
+            - 'alertname'
+        - source_matchers:
+            - 'alertname = InfoInhibitor'
+          target_matchers:
+            - 'severity = info'
+          equal:
+            - 'namespace'
+      route:
+        group_by: ['namespace']
+        group_wait: 30s
+        group_interval: 5m
+        repeat_interval: 12h
+        receiver: default
+        routes:
+        - match_re:
+            severity: info|warning
+            environment: prod
+          receiver: slack_webhook_test
+          repeat_interval: 1h
+          continue: true
+        - match_re:
+            severity: info|warning|critical
+            environment: dev
+          receiver: default
+          repeat_interval: 1h
+          continue: true
+        - match_re:
+            severity: critical
+            environment: prod|global
+          receiver: slack_webhook_prod
+          repeat_interval: 1h
+          continue: true
+        - receiver: default
+          matchers:
+          - alertname =~ "InfoInhibitor|Watchdog"
+      receivers:
+      - name: default
+      - name: slack_webhook_test
+        slack_configs:
+        - send_resolved: true
+          http_config:
+            follow_redirects: true
+          api_url: ${slack_api_url_test}
+          channel: '#aerq-monitoring-non-critical'
+          username: alertmanager
+          color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+          title: '[{{ .Status | toUpper }}] Monitoring Event Notification'
+          title_link: '{{ template "slack.default.titlelink" . }}'
+          pretext: '{{ template "slack.default.pretext" . }}'
+          text: |-
+            {{ range .Alerts }}
+              *Alert:* {{ .Annotations.summary }} - `{{ .Labels.severity }}`
+              *Description:* {{ .Annotations.description }}
+              *Graph*: <{{ .Annotations.graph }} | :chart_with_upwards_trend:>
+              *Details*:
+              {{ range .Labels.SortedPairs }} • *{{ .Name }}:* `{{ .Value }}`
+              {{ end }}
+            {{ end }}
+          short_fields: false
+          footer: '{{ template "slack.default.footer" . }}'
+          fallback: '{{ template "slack.default.fallback" . }}'
+          callback_id: '{{ template "slack.default.callbackid" . }}'
+          icon_emoji: '{{ template "slack.default.iconemoji" . }}'
+          icon_url: https://www.svgrepo.com/show/354219/prometheus.svg
+          link_names: false
+      - name: slack_webhook_dev
+        slack_configs:
+        - send_resolved: true
+          http_config:
+            follow_redirects: true
+          api_url: ${slack_api_url_dev}
+          channel: '#aerq-monitoring-dev'
+          username: alertmanager
+          color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+          title: '[{{ .Status | toUpper }}] Monitoring Event Notification'
+          title_link: '{{ template "slack.default.titlelink" . }}'
+          pretext: '{{ template "slack.default.pretext" . }}'
+          text: |-
+            {{ range .Alerts }}
+              *Alert:* {{ .Annotations.summary }} - `{{ .Labels.severity }}`
+              *Description:* {{ .Annotations.description }}
+              *Graph*: <{{ .Annotations.graph }} | :chart_with_upwards_trend:>
+              *Details*:
+              {{ range .Labels.SortedPairs }} • *{{ .Name }}:* `{{ .Value }}`
+              {{ end }}
+            {{ end }}
+          short_fields: false
+          footer: '{{ template "slack.default.footer" . }}'
+          fallback: '{{ template "slack.default.fallback" . }}'
+          callback_id: '{{ template "slack.default.callbackid" . }}'
+          icon_emoji: '{{ template "slack.default.iconemoji" . }}'
+          icon_url: https://www.svgrepo.com/show/354219/prometheus.svg
+          link_names: false
+      - name: slack_webhook_prod
+        slack_configs:
+        - send_resolved: true
+          http_config:
+            follow_redirects: true
+          api_url: ${slack_api_url_prod}
+          channel: '#aerq-monitoring-critical'
+          username: alertmanager
+          color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+          title: '[{{ .Status | toUpper }}] Monitoring Event Notification'
+          title_link: '{{ template "slack.default.titlelink" . }}'
+          pretext: '{{ template "slack.default.pretext" . }}'
+          text: |-
+            {{ range .Alerts }}
+              *Alert:* {{ .Annotations.summary }} - `{{ .Labels.severity }}`
+              *Description:* {{ .Annotations.description }}
+              *Graph*: <{{ .Annotations.graph }} | :chart_with_upwards_trend:>
+              *Details*:
+              {{ range .Labels.SortedPairs }} • *{{ .Name }}:* `{{ .Value }}`
+              {{ end }}
+            {{ end }}
+          short_fields: false
+          footer: '{{ template "slack.default.footer" . }}'
+          fallback: '{{ template "slack.default.fallback" . }}'
+          callback_id: '{{ template "slack.default.callbackid" . }}'
+          icon_emoji: '{{ template "slack.default.iconemoji" . }}'
+          icon_url: https://www.svgrepo.com/show/354219/prometheus.svg
+          link_names: false
+      templates:
+      - '/etc/alertmanager/config/*.tmpl'
