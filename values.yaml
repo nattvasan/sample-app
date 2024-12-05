@@ -1,0 +1,30 @@
+replicaCount: 2
+
+image:
+  repository: gitlab.testing.com:4567/sample-app/testingapp
+  tag: v1
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  port: 8000
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+env:
+  flaskApp: "app.py"
+  flaskRunPort: 8000
+
+################################################################################
+# HCP vault application secrets
+################################################################################
+
+vaultPullSecret:
+  name: k8s-pull-secret
+  path: prod/testingapp/k8s-pull-secret
